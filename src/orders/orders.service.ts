@@ -288,7 +288,7 @@ export class OrdersService {
     };
   }
 
-  async emailReceipt(orderId: string, email: string) {
+  async emailReceipt(orderId: string, email?: string) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -306,6 +306,11 @@ export class OrdersService {
 
     if (!order) {
       throw new NotFoundException('Order not found');
+    }
+
+    const targetEmail = email || order.customer?.email;
+    if (!targetEmail) {
+      throw new BadRequestException('Recipient email address is required');
     }
 
     const orderNum = order.table ? `Table ${order.table.number}` : `Order #${orderId.substring(0, 6).toUpperCase()}`;
@@ -354,7 +359,7 @@ export class OrdersService {
             <td style="text-align: left; font-size: 13px; color: #64748b; line-height: 1.6;">
               <strong>Billed To:</strong><br>
               <span style="color: #0f172a; font-weight: 600; font-size: 14px;">${order.customer?.name || 'Valued Guest'}</span><br>
-              ${order.customer?.email || email}<br>
+              ${targetEmail}<br>
               ${order.customer?.phone ? `${order.customer.phone}<br>` : ''}
             </td>
             <td style="text-align: right; font-size: 13px; color: #64748b; line-height: 1.6; vertical-align: top;">
@@ -420,6 +425,6 @@ export class OrdersService {
 </html>
     `;
 
-    return this.emailsService.sendEmail(email, `Receipt for ${orderNum} - Cafe POS`, htmlContent);
+    return this.emailsService.sendEmail(targetEmail, `Receipt for ${orderNum} - Cafe POS`, htmlContent);
   }
 }

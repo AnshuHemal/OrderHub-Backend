@@ -49,26 +49,34 @@ export class EmailsService {
     }
 
     if (this.transporter) {
-      const info = await this.transporter.sendMail({
-        from,
-        to,
-        subject,
-        html,
-      });
-      this.logger.log(`Email dispatched successfully! Message ID: ${info.messageId}`);
-      const previewUrl = nodemailer.getTestMessageUrl(info);
-      if (previewUrl) {
-        this.logger.log(`Preview Ethereal Mail URL: ${previewUrl}`);
-        return { messageId: info.messageId, previewUrl };
+      try {
+        const info = await this.transporter.sendMail({
+          from,
+          to,
+          subject,
+          html,
+        });
+        this.logger.log(`Email dispatched successfully! Message ID: ${info.messageId}`);
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        if (previewUrl) {
+          this.logger.log(`Preview Ethereal Mail URL: ${previewUrl}`);
+          return { messageId: info.messageId, previewUrl };
+        }
+        return { messageId: info.messageId };
+      } catch (err: any) {
+        this.logger.error(`Failed to send email via SMTP transporter. Falling back to Console Logger. Error: ${err.message}`, err.stack);
+        // Fall through to console log dump
       }
-      return { messageId: info.messageId };
-    } else {
-      this.logger.log(`[CONSOLE EMAIL DUMP]
+    }
+
+    this.logger.log(`[CONSOLE EMAIL DUMP]
 To: ${to}
 From: ${from}
 Subject: ${subject}
-HTML: (logged to terminal)`);
-      return { status: 'logged' };
-    }
+HTML Preview: (Logged below)
+-----------------------------------------
+${html.substring(0, 500)}... [truncated]
+-----------------------------------------`);
+    return { status: 'logged' };
   }
 }
