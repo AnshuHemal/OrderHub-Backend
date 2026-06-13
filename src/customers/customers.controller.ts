@@ -29,24 +29,24 @@ export class CustomersController {
   }
 
   @Post()
-  @Roles('OWNER', 'MANAGER')
+  @Roles('OWNER', 'MANAGER', 'STAFF')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new customer (Admin only)' })
+  @ApiOperation({ summary: 'Create a new customer' })
   create(@Body() dto: CreateCustomerDto) {
     return this.svc.create(dto);
   }
 
   @Put(':id')
-  @Roles('OWNER', 'MANAGER')
-  @ApiOperation({ summary: 'Update customer details (Admin only)' })
+  @Roles('OWNER', 'MANAGER', 'STAFF')
+  @ApiOperation({ summary: 'Update customer details' })
   update(@Param('id') id: string, @Body() dto: UpdateCustomerDto) {
     return this.svc.update(id, dto);
   }
 
   @Delete(':id')
-  @Roles('OWNER', 'MANAGER')
+  @Roles('OWNER', 'MANAGER', 'STAFF')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete a customer (Admin only)' })
+  @ApiOperation({ summary: 'Delete a customer' })
   remove(@Param('id') id: string) {
     return this.svc.remove(id);
   }
