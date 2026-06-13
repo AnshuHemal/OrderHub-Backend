@@ -199,6 +199,7 @@ model Order {
   id          String      @id @default(cuid())
   tableId     String?
   staffId     String
+  customerId  String?
   type        OrderType   @default(DINE_IN)
   status      OrderStatus @default(PENDING)
   notes       String?
@@ -211,10 +212,11 @@ model Order {
   updatedAt   DateTime    @updatedAt
   completedAt DateTime?
 
-  table   Table?      @relation(fields: [tableId], references: [id], onDelete: SetNull)
-  staff   User        @relation(fields: [staffId], references: [id])
-  items   OrderItem[]
-  payment Payment?
+  table    Table?      @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  staff    User        @relation(fields: [staffId], references: [id])
+  customer Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items    OrderItem[]
+  payment  Payment?
 
   @@map("orders")
 }
@@ -263,3 +265,29 @@ model ShiftLog {
 
   @@map("shift_logs")
 }
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders Order[]
+
+  @@map("customers")
+}
+
+model Coupon {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  discountType  String   // "percentage" | "fixed"
+  discountValue Float
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("coupons")
+}
+

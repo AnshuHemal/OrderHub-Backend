@@ -10,6 +10,8 @@ import { FloorsModule }     from './floors/floors.module';
 import { MenuModule }       from './menu/menu.module';
 import { OrdersModule }     from './orders/orders.module';
 import { AnalyticsModule }  from './analytics/analytics.module';
+import { CustomersModule }  from './customers/customers.module';
+import { CouponsModule }    from './coupons/coupons.module';
 
 import { JwtAuthGuard }         from './common/guards/jwt-auth.guard';
 import { RolesGuard }           from './common/guards/roles.guard';
@@ -34,6 +36,8 @@ import { AppService }    from './app.service';
     MenuModule,
     OrdersModule,
     AnalyticsModule,
+    CustomersModule,
+    CouponsModule,
   ],
   controllers: [AppController],
   providers: [
