@@ -16,7 +16,18 @@ async function bootstrap() {
   const frontendUrl = config.get<string>('FRONTEND_URL', 'http://localhost:3000');
 
   // Security
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+          'script-src': ["'self'", "'unsafe-inline'", 'cdnjs.cloudflare.com'],
+          'style-src': ["'self'", "'unsafe-inline'", 'cdnjs.cloudflare.com'],
+          'connect-src': ["'self'", 'cdnjs.cloudflare.com'],
+        },
+      },
+    }),
+  );
   app.use(compression());
   app.use(cookieParser());
 
