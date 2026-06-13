@@ -2,6 +2,7 @@ import {
   Injectable, NotFoundException, BadRequestException, Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailsService } from '../emails/emails.service';
 import {
   CreateOrderDto, AddItemsDto,
   UpdateOrderStatusDto, UpdateItemStatusDto, ProcessPaymentDto,
@@ -13,7 +14,10 @@ const TAX_RATE = 0.10; // 10% — configure per deployment
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailsService: EmailsService,
+  ) {}
 
   // ── Create order ─────────────────────────────────────────────────────────────
 
@@ -274,6 +278,7 @@ export class OrdersService {
     return {
       table:   { select: { id: true, number: true, floorId: true } },
       staff:   { select: { id: true, name: true } },
+      customer: { select: { id: true, name: true, email: true, phone: true } },
       items: {
         include: {
           menuItem: { select: { id: true, name: true, price: true, category: { select: { name: true } } } },
@@ -281,5 +286,140 @@ export class OrdersService {
       },
       payment: true,
     };
+  }
+
+  async emailReceipt(orderId: string, email: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        table: true,
+        staff: true,
+        customer: true,
+        payment: true,
+        items: {
+          include: {
+            menuItem: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const orderNum = order.table ? `Table ${order.table.number}` : `Order #${orderId.substring(0, 6).toUpperCase()}`;
+
+    const itemsHtml = order.items.map(item => `
+      <tr style="border-bottom: 1px solid #f1f5f9;">
+        <td style="padding: 12px 0; text-align: left; font-size: 14px; color: #1e293b;">
+          <strong>${item.menuItem.name}</strong>
+          ${item.notes ? `<div style="font-size: 11px; color: #64748b;">Note: ${item.notes}</div>` : ''}
+        </td>
+        <td style="padding: 12px 0; text-align: center; font-size: 14px; color: #475569;">${item.quantity}</td>
+        <td style="padding: 12px 0; text-align: right; font-size: 14px; color: #1e293b; font-weight: 600;">$${(item.unitPrice * item.quantity).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const discountRow = order.discount > 0 ? `
+      <tr>
+        <td colspan="2" style="padding: 6px 0; text-align: left; font-size: 14px; color: #64748b;">Discount:</td>
+        <td style="padding: 6px 0; text-align: right; font-size: 14px; color: #ef4444; font-weight: 600;">-$${order.discount.toFixed(2)}</td>
+      </tr>
+    ` : '';
+
+    const paymentMethod = order.payment?.method || 'CASH';
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Your Receipt from Cafe POS</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 0;">
+  <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 550px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); overflow: hidden; border-collapse: collapse;">
+    <tr>
+      <td style="padding: 32px 32px 24px 32px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); text-align: center;">
+        <div style="font-size: 32px; margin-bottom: 8px;">☕</div>
+        <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; letter-spacing: -0.5px;">Cafe POS Receipt</h1>
+        <p style="color: rgba(255, 255, 255, 0.85); font-size: 13px; margin: 6px 0 0 0; font-weight: 500;">Thank you for your order!</p>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding: 32px 32px 20px 32px; border-bottom: 1px dashed #e2e8f0;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="text-align: left; font-size: 13px; color: #64748b; line-height: 1.6;">
+              <strong>Billed To:</strong><br>
+              <span style="color: #0f172a; font-weight: 600; font-size: 14px;">${order.customer?.name || 'Valued Guest'}</span><br>
+              ${order.customer?.email || email}<br>
+              ${order.customer?.phone ? `${order.customer.phone}<br>` : ''}
+            </td>
+            <td style="text-align: right; font-size: 13px; color: #64748b; line-height: 1.6; vertical-align: top;">
+              <strong>Receipt Info:</strong><br>
+              Order: <span style="color: #0f172a; font-weight: 600;">${orderNum}</span><br>
+              Date: ${new Date(order.createdAt).toLocaleDateString()}<br>
+              Time: ${new Date(order.createdAt).toLocaleTimeString()}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding: 24px 32px 16px 32px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <thead>
+            <tr style="border-bottom: 2px solid #e2e8f0;">
+              <th style="padding-bottom: 12px; text-align: left; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase;">Item</th>
+              <th style="padding-bottom: 12px; text-align: center; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; width: 60px;">Qty</th>
+              <th style="padding-bottom: 12px; text-align: right; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; width: 80px;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding: 0 32px 32px 32px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 16px; padding: 16px;">
+          <tr>
+            <td colspan="2" style="padding: 6px 0; text-align: left; font-size: 14px; color: #64748b;">Subtotal:</td>
+            <td style="padding: 6px 0; text-align: right; font-size: 14px; color: #1e293b; font-weight: 500;">$${order.subtotal.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td colspan="2" style="padding: 6px 0; text-align: left; font-size: 14px; color: #64748b;">Taxes & Vat:</td>
+            <td style="padding: 6px 0; text-align: right; font-size: 14px; color: #1e293b; font-weight: 500;">$${order.tax.toFixed(2)}</td>
+          </tr>
+          ${discountRow}
+          <tr style="border-top: 1px solid #e2e8f0;">
+            <td colspan="2" style="padding: 12px 0 0 0; text-align: left; font-size: 16px; font-weight: 800; color: #0f172a;">GRAND TOTAL:</td>
+            <td style="padding: 12px 0 0 0; text-align: right; font-size: 18px; font-weight: 800; color: #d97706;">$${order.total.toFixed(2)}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding: 24px 32px 32px 32px; background-color: #f1f5f9; text-align: center; border-radius: 0 0 24px 24px;">
+        <p style="font-size: 13px; color: #475569; margin: 0 0 8px 0; font-weight: 500;">
+          Paid via <strong>${paymentMethod}</strong> ${order.payment?.reference ? `(Ref: ${order.payment.reference})` : ''}
+        </p>
+        <div style="font-size: 12px; color: #94a3b8; font-weight: 500;">
+          If you have any questions about this receipt, please contact us at info@orderhub.com
+        </div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `;
+
+    return this.emailsService.sendEmail(email, `Receipt for ${orderNum} - Cafe POS`, htmlContent);
   }
 }

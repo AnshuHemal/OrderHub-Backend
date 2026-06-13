@@ -108,4 +108,13 @@ export class OrdersController {
   ) {
     return this.svc.processPayment(id, dto);
   }
+
+  @Post(':id/email-receipt')
+  @ApiOperation({ summary: 'Email receipt to customer' })
+  emailReceipt(
+    @Param('id') id: string,
+    @Body('email') email: string,
+  ) {
+    return this.svc.emailReceipt(id, email);
+  }
 }
