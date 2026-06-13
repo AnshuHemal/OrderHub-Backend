@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EventsGateway } from '../events/events.gateway';
 import { CreateFloorDto, UpdateFloorDto, CreateTableDto, UpdateTableDto } from './dto/floor.dto';
 
 @Injectable()
 export class FloorsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventsGateway: EventsGateway,
+  ) {}
 
   // ── Floors ──────────────────────────────────────────────────────────────────
 
@@ -45,12 +49,16 @@ export class FloorsService {
 
   async updateTable(id: string, dto: UpdateTableDto) {
     await this.findTableOrThrow(id);
-    return this.prisma.table.update({ where: { id }, data: dto });
+    const updated = await this.prisma.table.update({ where: { id }, data: dto });
+    this.eventsGateway.server?.emit('table_updated', updated);
+    return updated;
   }
 
   async updateTableStatus(id: string, status: string) {
     await this.findTableOrThrow(id);
-    return this.prisma.table.update({ where: { id }, data: { status: status as never } });
+    const updated = await this.prisma.table.update({ where: { id }, data: { status: status as never } });
+    this.eventsGateway.server?.emit('table_updated', { id, status: updated.status });
+    return updated;
   }
 
   async deleteTable(id: string) {

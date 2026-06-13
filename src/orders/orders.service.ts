@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailsService } from '../emails/emails.service';
+import { EventsGateway } from '../events/events.gateway';
 import {
   CreateOrderDto, AddItemsDto,
   UpdateOrderStatusDto, UpdateItemStatusDto, ProcessPaymentDto,
@@ -17,6 +18,7 @@ export class OrdersService {
   constructor(
     private prisma: PrismaService,
     private emailsService: EmailsService,
+    private eventsGateway: EventsGateway,
   ) {}
 
   // ── Create order ─────────────────────────────────────────────────────────────
@@ -73,6 +75,10 @@ export class OrdersService {
     }
 
     this.logger.log(`Order created: ${order.id}`);
+    this.eventsGateway.server?.emit('order_created', order);
+    if (dto.tableId) {
+      this.eventsGateway.server?.emit('table_updated', { id: dto.tableId, status: 'OCCUPIED' });
+    }
     return order;
   }
 
@@ -124,7 +130,7 @@ export class OrdersService {
     const newTax        = parseFloat((newSubtotal * TAX_RATE).toFixed(2));
     const newTotal      = parseFloat((newSubtotal + newTax).toFixed(2));
 
-    return this.prisma.order.update({
+    const updated = await this.prisma.order.update({
       where: { id: orderId },
       data: {
         subtotal: newSubtotal,
@@ -142,21 +148,29 @@ export class OrdersService {
       },
       include: this.orderInclude(),
     });
+    this.eventsGateway.server?.emit('order_updated', updated);
+    return updated;
   }
 
   async updateStatus(id: string, dto: UpdateOrderStatusDto) {
     await this.findOne(id);
-    return this.prisma.order.update({
+    const updated = await this.prisma.order.update({
       where: { id },
       data:  { status: dto.status, completedAt: dto.status === 'PAID' ? new Date() : undefined },
       include: this.orderInclude(),
     });
+    this.eventsGateway.server?.emit('order_updated', updated);
+    return updated;
   }
 
   async updateItemStatus(itemId: string, dto: UpdateItemStatusDto) {
     const item = await this.prisma.orderItem.findUnique({ where: { id: itemId } });
     if (!item) throw new NotFoundException(`OrderItem ${itemId} not found`);
-    return this.prisma.orderItem.update({ where: { id: itemId }, data: { status: dto.status } });
+    const updatedItem = await this.prisma.orderItem.update({ where: { id: itemId }, data: { status: dto.status } });
+    
+    const parentOrder = await this.findOne(updatedItem.orderId);
+    this.eventsGateway.server?.emit('order_updated', parentOrder);
+    return updatedItem;
   }
 
   async cancelOrder(id: string) {
@@ -175,8 +189,10 @@ export class OrdersService {
         where: { id: order.tableId },
         data:  { status: 'AVAILABLE' },
       }).catch(() => {});
+      this.eventsGateway.server?.emit('table_updated', { id: order.tableId, status: 'AVAILABLE' });
     }
 
+    this.eventsGateway.server?.emit('order_updated', updated);
     return updated;
   }
 
@@ -195,9 +211,12 @@ export class OrdersService {
     // Free old table, occupy new
     if (oldTableId) {
       await this.prisma.table.update({ where: { id: oldTableId }, data: { status: 'AVAILABLE' } }).catch(() => {});
+      this.eventsGateway.server?.emit('table_updated', { id: oldTableId, status: 'AVAILABLE' });
     }
     await this.prisma.table.update({ where: { id: newTableId }, data: { status: 'OCCUPIED' } }).catch(() => {});
+    this.eventsGateway.server?.emit('table_updated', { id: newTableId, status: 'OCCUPIED' });
 
+    this.eventsGateway.server?.emit('order_updated', updated);
     return updated;
   }
 
@@ -227,7 +246,11 @@ export class OrdersService {
         where: { id: order.tableId },
         data:  { status: 'DIRTY' },   // needs cleaning after payment
       }).catch(() => {});
+      this.eventsGateway.server?.emit('table_updated', { id: order.tableId, status: 'DIRTY' });
     }
+
+    const fullOrder = await this.findOne(orderId);
+    this.eventsGateway.server?.emit('order_updated', fullOrder);
 
     this.logger.log(`Order ${orderId} paid — ${dto.method} ${total}`);
     return payment;

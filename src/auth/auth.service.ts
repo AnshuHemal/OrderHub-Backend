@@ -75,15 +75,6 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, account.password);
     if (!valid) throw new UnauthorizedException('Invalid email or password');
 
-    if (!user.emailVerified) {
-      try {
-        await this.sendVerificationOtp(user.email, 'email-verification');
-      } catch (e: any) {
-        this.logger.error(`Failed to send verification OTP on login attempt for ${user.email}: ${e.message}`);
-      }
-      throw new UnauthorizedException('Email not verified. We sent a verification code to your email.');
-    }
-
     const { accounts: _, ...safeUser } = user;
     const tokens = await this.issueTokens({ sub: user.id, email: user.email, role: user.role });
 
