@@ -12,6 +12,7 @@ import { OrdersModule }     from './orders/orders.module';
 import { AnalyticsModule }  from './analytics/analytics.module';
 import { CustomersModule }  from './customers/customers.module';
 import { CouponsModule }    from './coupons/coupons.module';
+import { PromotionsModule } from './promotions/promotions.module';
 
 import { JwtAuthGuard }         from './common/guards/jwt-auth.guard';
 import { RolesGuard }           from './common/guards/roles.guard';
@@ -38,6 +39,7 @@ import { AppService }    from './app.service';
     AnalyticsModule,
     CustomersModule,
     CouponsModule,
+    PromotionsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -189,6 +189,7 @@ model MenuItem {
 
   category   Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   orderItems OrderItem[]
+  promotions Promotion[]
 
   @@map("menu_items")
 }
@@ -289,5 +290,23 @@ model Coupon {
   updatedAt     DateTime @updatedAt
 
   @@map("coupons")
+}
+
+model Promotion {
+  id              String   @id @default(cuid())
+  name            String
+  promoType       String   // "product" | "order"
+  targetProductId String?
+  minQuantity     Int?
+  minOrderAmount  Float?
+  discountType    String   // "percentage" | "fixed"
+  discountValue   Float
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  targetProduct MenuItem? @relation(fields: [targetProductId], references: [id], onDelete: SetNull)
+
+  @@map("promotions")
 }
 
