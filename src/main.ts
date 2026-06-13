@@ -42,17 +42,26 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // Swagger
-  if (config.get('NODE_ENV') !== 'production') {
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle('OrderHub API')
-      .setDescription('Cafe & Restaurant POS REST API')
-      .setVersion('1.0')
-      .addBearerAuth()
-      .build();
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup('api/docs', app, document);
-    logger.log(`Swagger: http://localhost:${port}/api/docs`);
-  }
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('OrderHub API')
+    .setDescription('Cafe & Restaurant POS REST API')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document, {
+    customSiteTitle: 'OrderHub API Docs',
+    customJs: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-bundle.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-standalone-preset.min.js',
+    ],
+    customCssUrl: [
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui.min.css',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-standalone-preset.min.css',
+      'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui.css',
+    ],
+  });
+  logger.log(`Swagger: http://localhost:${port}/api/docs`);
 
   await app.listen(port);
   logger.log(`🚀 OrderHub API running on http://localhost:${port}/api`);
