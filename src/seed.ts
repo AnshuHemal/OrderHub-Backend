@@ -42,6 +42,7 @@ async function main() {
 
     console.log('Clearing existing database records...');
     // Delete tables first due to foreign key references
+    await prisma.booking.deleteMany();
     await prisma.payment.deleteMany();
     await prisma.orderItem.deleteMany();
     await prisma.order.deleteMany();
@@ -49,6 +50,7 @@ async function main() {
     await prisma.floor.deleteMany();
     await prisma.menuItem.deleteMany();
     await prisma.category.deleteMany();
+    await prisma.customer.deleteMany();
 
     console.log('Seeding users...');
     const usersToSeed = [
@@ -195,6 +197,48 @@ async function main() {
         });
         console.log(`  Created table: ${createdTable.number}`);
       }
+    }
+
+    console.log('Seeding customers...');
+    const sarah = await prisma.customer.create({
+      data: { name: 'Sarah Connor', email: 'sarah@terminator.com', phone: '+1 555 1234' }
+    });
+    const bruce = await prisma.customer.create({
+      data: { name: 'Bruce Wayne', email: 'bruce@batman.com', phone: '+1 999 8888' }
+    });
+    console.log(`Created customers: ${sarah.name}, ${bruce.name}`);
+
+    console.log('Seeding table bookings...');
+    const tableT101 = await prisma.table.findFirst({ where: { number: 'T-101' } });
+    const tableT102 = await prisma.table.findFirst({ where: { number: 'T-102' } });
+
+    if (tableT101 && tableT102) {
+      // Seed one confirmed booking 15 minutes in the future for testing reservation proximity
+      const timeProximity = new Date(Date.now() + 15 * 60000); // 15 mins in future
+      await prisma.booking.create({
+        data: {
+          customerId: sarah.id,
+          tableId: tableT101.id,
+          bookingTime: timeProximity,
+          guestsCount: 2,
+          status: 'confirmed',
+          notes: 'Wants a quiet corner table, anniversary celebration.'
+        }
+      });
+
+      // Seed another booking 3 hours in the future
+      const timeFar = new Date(Date.now() + 3 * 3600000); // 3 hours in future
+      await prisma.booking.create({
+        data: {
+          customerId: bruce.id,
+          tableId: tableT102.id,
+          bookingTime: timeFar,
+          guestsCount: 4,
+          status: 'pending',
+          notes: 'High chair needed for a child.'
+        }
+      });
+      console.log('Seeded 2 mock bookings successfully.');
     }
 
     console.log('Database seeding completed successfully!');

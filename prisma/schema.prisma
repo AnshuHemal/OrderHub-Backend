@@ -153,6 +153,7 @@ model Table {
 
   floor  Floor   @relation(fields: [floorId], references: [id], onDelete: Cascade)
   orders Order[]
+  bookings Booking[]
 
   @@map("tables")
 }
@@ -277,6 +278,7 @@ model Customer {
   updatedAt DateTime @updatedAt
 
   orders Order[]
+  bookings Booking[]
 
   @@map("customers")
 }
@@ -318,5 +320,22 @@ model SystemSetting {
   updatedAt DateTime @updatedAt
 
   @@map("system_settings")
+}
+
+model Booking {
+  id           String   @id @default(cuid())
+  customerId   String
+  tableId      String
+  bookingTime  DateTime
+  guestsCount  Int      @default(2)
+  status       String   @default("pending") // "pending" | "confirmed" | "cancelled"
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  table        Table    @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@map("bookings")
 }
 

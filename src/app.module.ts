@@ -16,6 +16,7 @@ import { PromotionsModule } from './promotions/promotions.module';
 import { EmailsModule }     from './emails/emails.module';
 import { EventsModule }     from './events/events.module';
 import { SettingsModule }   from './settings/settings.module';
+import { BookingsModule }   from './bookings/bookings.module';
 
 import { JwtAuthGuard }         from './common/guards/jwt-auth.guard';
 import { RolesGuard }           from './common/guards/roles.guard';
@@ -46,6 +47,7 @@ import { AppService }    from './app.service';
     EmailsModule,
     EventsModule,
     SettingsModule,
+    BookingsModule,
   ],
   controllers: [AppController],
   providers: [
