@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { EventsGateway } from '../events/events.gateway';
 import { CreateFloorDto, UpdateFloorDto, CreateTableDto, UpdateTableDto } from './dto/floor.dto';
+import { EventsGateway } from '../events/events.gateway';
 
 @Injectable()
 export class FloorsService {
@@ -44,26 +44,30 @@ export class FloorsService {
 
   async createTable(floorId: string, dto: CreateTableDto) {
     await this.findFloorOrThrow(floorId);
-    return this.prisma.table.create({ data: { ...dto, floorId } });
+    const res = await this.prisma.table.create({ data: { ...dto, floorId } });
+    this.eventsGateway.broadcast('tablesUpdated', { tableId: res.id, type: 'created' });
+    return res;
   }
 
   async updateTable(id: string, dto: UpdateTableDto) {
     await this.findTableOrThrow(id);
-    const updated = await this.prisma.table.update({ where: { id }, data: dto });
-    this.eventsGateway.server?.emit('table_updated', updated);
-    return updated;
+    const res = await this.prisma.table.update({ where: { id }, data: dto });
+    this.eventsGateway.broadcast('tablesUpdated', { tableId: id, type: 'updated' });
+    return res;
   }
 
   async updateTableStatus(id: string, status: string) {
     await this.findTableOrThrow(id);
-    const updated = await this.prisma.table.update({ where: { id }, data: { status: status as never } });
-    this.eventsGateway.server?.emit('table_updated', { id, status: updated.status });
-    return updated;
+    const res = await this.prisma.table.update({ where: { id }, data: { status: status as never } });
+    this.eventsGateway.broadcast('tablesUpdated', { tableId: id, status, type: 'status_updated' });
+    return res;
   }
 
   async deleteTable(id: string) {
     await this.findTableOrThrow(id);
-    return this.prisma.table.delete({ where: { id } });
+    const res = await this.prisma.table.delete({ where: { id } });
+    this.eventsGateway.broadcast('tablesUpdated', { tableId: id, type: 'deleted' });
+    return res;
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────

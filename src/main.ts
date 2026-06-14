@@ -23,7 +23,7 @@ async function bootstrap() {
           ...helmet.contentSecurityPolicy.getDefaultDirectives(),
           'script-src': ["'self'", "'unsafe-inline'", 'cdnjs.cloudflare.com'],
           'style-src': ["'self'", "'unsafe-inline'", 'cdnjs.cloudflare.com'],
-          'connect-src': ["'self'", 'cdnjs.cloudflare.com'],
+          'connect-src': ["'self'", 'cdnjs.cloudflare.com', 'ws:', 'wss:', 'http://localhost:4000', 'https://order-hub-backend.vercel.app'],
         },
       },
     }),

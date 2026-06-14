@@ -75,10 +75,7 @@ export class OrdersService {
     }
 
     this.logger.log(`Order created: ${order.id}`);
-    this.eventsGateway.server?.emit('order_created', order);
-    if (dto.tableId) {
-      this.eventsGateway.server?.emit('table_updated', { id: dto.tableId, status: 'OCCUPIED' });
-    }
+    this.eventsGateway.broadcast('ordersUpdated', { orderId: order.id, type: 'created' });
     return order;
   }
 
@@ -148,7 +145,7 @@ export class OrdersService {
       },
       include: this.orderInclude(),
     });
-    this.eventsGateway.server?.emit('order_updated', updated);
+    this.eventsGateway.broadcast('ordersUpdated', { orderId, type: 'updated' });
     return updated;
   }
 
@@ -159,18 +156,17 @@ export class OrdersService {
       data:  { status: dto.status, completedAt: dto.status === 'PAID' ? new Date() : undefined },
       include: this.orderInclude(),
     });
-    this.eventsGateway.server?.emit('order_updated', updated);
+    this.eventsGateway.broadcast('ordersUpdated', { orderId: id, type: 'status_updated' });
+    if (updated.tableId) this.eventsGateway.broadcast('tablesUpdated', { tableId: updated.tableId });
     return updated;
   }
 
   async updateItemStatus(itemId: string, dto: UpdateItemStatusDto) {
     const item = await this.prisma.orderItem.findUnique({ where: { id: itemId } });
     if (!item) throw new NotFoundException(`OrderItem ${itemId} not found`);
-    const updatedItem = await this.prisma.orderItem.update({ where: { id: itemId }, data: { status: dto.status } });
-    
-    const parentOrder = await this.findOne(updatedItem.orderId);
-    this.eventsGateway.server?.emit('order_updated', parentOrder);
-    return updatedItem;
+    const res = await this.prisma.orderItem.update({ where: { id: itemId }, data: { status: dto.status } });
+    this.eventsGateway.broadcast('ordersUpdated', { orderId: item.orderId, itemId, type: 'item_status_updated' });
+    return res;
   }
 
   async cancelOrder(id: string) {
@@ -189,10 +185,11 @@ export class OrdersService {
         where: { id: order.tableId },
         data:  { status: 'AVAILABLE' },
       }).catch(() => {});
-      this.eventsGateway.server?.emit('table_updated', { id: order.tableId, status: 'AVAILABLE' });
     }
 
-    this.eventsGateway.server?.emit('order_updated', updated);
+    this.eventsGateway.broadcast('ordersUpdated', { orderId: id, type: 'cancelled' });
+    if (order.tableId) this.eventsGateway.broadcast('tablesUpdated', { tableId: order.tableId });
+
     return updated;
   }
 
@@ -211,12 +208,13 @@ export class OrdersService {
     // Free old table, occupy new
     if (oldTableId) {
       await this.prisma.table.update({ where: { id: oldTableId }, data: { status: 'AVAILABLE' } }).catch(() => {});
-      this.eventsGateway.server?.emit('table_updated', { id: oldTableId, status: 'AVAILABLE' });
     }
     await this.prisma.table.update({ where: { id: newTableId }, data: { status: 'OCCUPIED' } }).catch(() => {});
-    this.eventsGateway.server?.emit('table_updated', { id: newTableId, status: 'OCCUPIED' });
 
-    this.eventsGateway.server?.emit('order_updated', updated);
+    this.eventsGateway.broadcast('ordersUpdated', { orderId, type: 'transferred' });
+    this.eventsGateway.broadcast('tablesUpdated', { tableId: newTableId });
+    if (oldTableId) this.eventsGateway.broadcast('tablesUpdated', { tableId: oldTableId });
+
     return updated;
   }
 
@@ -246,13 +244,11 @@ export class OrdersService {
         where: { id: order.tableId },
         data:  { status: 'DIRTY' },   // needs cleaning after payment
       }).catch(() => {});
-      this.eventsGateway.server?.emit('table_updated', { id: order.tableId, status: 'DIRTY' });
     }
 
-    const fullOrder = await this.findOne(orderId);
-    this.eventsGateway.server?.emit('order_updated', fullOrder);
-
     this.logger.log(`Order ${orderId} paid — ${dto.method} ${total}`);
+    this.eventsGateway.broadcast('ordersUpdated', { orderId, type: 'paid' });
+    if (order.tableId) this.eventsGateway.broadcast('tablesUpdated', { tableId: order.tableId });
     return payment;
   }
 
@@ -363,14 +359,14 @@ export class OrdersService {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Your Receipt from Cafe POS</title>
+  <title>Your Receipt from OrderHub</title>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 0;">
   <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 550px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); overflow: hidden; border-collapse: collapse;">
     <tr>
       <td style="padding: 32px 32px 24px 32px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); text-align: center;">
         <div style="font-size: 32px; margin-bottom: 8px;">☕</div>
-        <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; letter-spacing: -0.5px;">Cafe POS Receipt</h1>
+        <h1 style="color: #ffffff; font-size: 24px; font-weight: 800; margin: 0; letter-spacing: -0.5px;">OrderHub Receipt</h1>
         <p style="color: rgba(255, 255, 255, 0.85); font-size: 13px; margin: 6px 0 0 0; font-weight: 500;">Thank you for your order!</p>
       </td>
     </tr>
@@ -448,6 +444,6 @@ export class OrdersService {
 </html>
     `;
 
-    return this.emailsService.sendEmail(targetEmail, `Receipt for ${orderNum} - Cafe POS`, htmlContent);
+    return this.emailsService.sendEmail(targetEmail, `Receipt for ${orderNum} - OrderHub`, htmlContent);
   }
 }
