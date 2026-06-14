@@ -42,6 +42,9 @@ async function main() {
 
     console.log('Clearing existing database records...');
     // Delete tables first due to foreign key references
+    await prisma.payment.deleteMany();
+    await prisma.orderItem.deleteMany();
+    await prisma.order.deleteMany();
     await prisma.table.deleteMany();
     await prisma.floor.deleteMany();
     await prisma.menuItem.deleteMany();
@@ -83,6 +86,7 @@ async function main() {
       {
         name: 'Hot Beverages',
         color: '#EF4444',
+        preparationStation: 'Barista Station',
         items: [
           { name: 'Espresso', price: 3.50, description: 'Rich shot of double espresso' },
           { name: 'Cappuccino', price: 4.50, description: 'Espresso with steamed milk foam' }
@@ -91,6 +95,7 @@ async function main() {
       {
         name: 'Cold Beverages',
         color: '#3B82F6',
+        preparationStation: 'Barista Station',
         items: [
           { name: 'Iced Latte', price: 4.80, description: 'Cold milk over ice, with espresso' }
         ]
@@ -98,6 +103,7 @@ async function main() {
       {
         name: 'Snacks',
         color: '#F59E0B',
+        preparationStation: 'Hot Kitchen',
         items: [
           { name: 'Avocado Toast', price: 7.50, description: 'Sourdough with mashed avocado and chilli flakes' }
         ]
@@ -105,6 +111,7 @@ async function main() {
       {
         name: 'Desserts',
         color: '#EC4899',
+        preparationStation: 'Bakery & Desserts',
         items: [
           { name: 'Chocolate Brownie', price: 3.80, description: 'Warm fudge chocolate brownie' }
         ]
@@ -112,6 +119,7 @@ async function main() {
       {
         name: 'Bakery',
         color: '#10B981',
+        preparationStation: 'Bakery & Desserts',
         items: [
           { name: 'Croissant', price: 3.20, description: 'Flaky butter croissant' }
         ]
@@ -123,6 +131,7 @@ async function main() {
         data: {
           name: catData.name,
           color: catData.color,
+          preparationStation: catData.preparationStation,
           isActive: true
         }
       });

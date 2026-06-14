@@ -12,6 +12,10 @@ export class CreateCategoryDto {
   @ApiPropertyOptional() @IsOptional() @IsString() icon?:  string;
   @ApiPropertyOptional() @IsOptional() @IsString() color?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0)   position?: number;
+
+  @ApiPropertyOptional({ example: 'Barista Station' })
+  @IsOptional() @IsString() @MaxLength(100)
+  preparationStation?: string;
 }
 export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
