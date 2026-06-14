@@ -42,6 +42,8 @@ async function main() {
 
     console.log('Clearing existing database records...');
     // Delete tables first due to foreign key references
+    await prisma.recipeIngredient.deleteMany();
+    await prisma.ingredient.deleteMany();
     await prisma.booking.deleteMany();
     await prisma.payment.deleteMany();
     await prisma.orderItem.deleteMany();
@@ -240,6 +242,69 @@ async function main() {
       });
       console.log('Seeded 2 mock bookings successfully.');
     }
+
+    console.log('Seeding raw ingredients...');
+    const beans = await prisma.ingredient.create({ data: { name: 'Espresso Beans', quantity: 1000, unit: 'g', minThreshold: 200 } });
+    const milk = await prisma.ingredient.create({ data: { name: 'Whole Milk', quantity: 2000, unit: 'ml', minThreshold: 500 } });
+    const chicken = await prisma.ingredient.create({ data: { name: 'Chicken Breasts', quantity: 20, unit: 'pcs', minThreshold: 5 } });
+    const avocado = await prisma.ingredient.create({ data: { name: 'Avocados', quantity: 15, unit: 'pcs', minThreshold: 4 } });
+    const sourdough = await prisma.ingredient.create({ data: { name: 'Sourdough Slices', quantity: 10, unit: 'pcs', minThreshold: 3 } });
+    const fudge = await prisma.ingredient.create({ data: { name: 'Chocolate Fudge', quantity: 1000, unit: 'g', minThreshold: 150 } });
+    console.log('Seeded raw ingredients successfully.');
+
+    console.log('Seeding recipe ingredients links...');
+    
+    // Find menu items
+    const espressoItem = await prisma.menuItem.findFirst({ where: { name: 'Espresso' } });
+    const cappuccinoItem = await prisma.menuItem.findFirst({ where: { name: 'Cappuccino' } });
+    const icedLatteItem = await prisma.menuItem.findFirst({ where: { name: 'Iced Latte' } });
+    const avocadoToastItem = await prisma.menuItem.findFirst({ where: { name: 'Avocado Toast' } });
+    const brownieItem = await prisma.menuItem.findFirst({ where: { name: 'Chocolate Brownie' } });
+
+    // Espresso Recipe: requires 18g espresso beans
+    if (espressoItem) {
+      await prisma.recipeIngredient.create({
+        data: { menuItemId: espressoItem.id, ingredientId: beans.id, quantityRequired: 18 }
+      });
+    }
+
+    // Cappuccino Recipe: requires 18g beans, 150ml milk
+    if (cappuccinoItem) {
+      await prisma.recipeIngredient.create({
+        data: { menuItemId: cappuccinoItem.id, ingredientId: beans.id, quantityRequired: 18 }
+      });
+      await prisma.recipeIngredient.create({
+        data: { menuItemId: cappuccinoItem.id, ingredientId: milk.id, quantityRequired: 150 }
+      });
+    }
+
+    // Iced Latte Recipe: requires 18g beans, 200ml milk
+    if (icedLatteItem) {
+      await prisma.recipeIngredient.create({
+        data: { menuItemId: icedLatteItem.id, ingredientId: beans.id, quantityRequired: 18 }
+      });
+      await prisma.recipeIngredient.create({
+        data: { menuItemId: icedLatteItem.id, ingredientId: milk.id, quantityRequired: 200 }
+      });
+    }
+
+    // Avocado Toast Recipe: requires 1 pcs sourdough, 1 pcs avocado
+    if (avocadoToastItem) {
+      await prisma.recipeIngredient.create({
+        data: { menuItemId: avocadoToastItem.id, ingredientId: sourdough.id, quantityRequired: 1 }
+      });
+      await prisma.recipeIngredient.create({
+        data: { menuItemId: avocadoToastItem.id, ingredientId: avocado.id, quantityRequired: 1 }
+      });
+    }
+
+    // Chocolate Brownie Recipe: requires 50g fudge
+    if (brownieItem) {
+      await prisma.recipeIngredient.create({
+        data: { menuItemId: brownieItem.id, ingredientId: fudge.id, quantityRequired: 50 }
+      });
+    }
+    console.log('Seeded recipe ingredients links successfully.');
 
     console.log('Database seeding completed successfully!');
   } catch (err) {

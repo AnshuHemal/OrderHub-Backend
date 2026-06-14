@@ -4,6 +4,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailsService } from '../emails/emails.service';
 import { EventsGateway } from '../events/events.gateway';
+import { IngredientsService } from '../ingredients/ingredients.service';
 import {
   CreateOrderDto, AddItemsDto,
   UpdateOrderStatusDto, UpdateItemStatusDto, ProcessPaymentDto,
@@ -19,6 +20,7 @@ export class OrdersService {
     private prisma: PrismaService,
     private emailsService: EmailsService,
     private eventsGateway: EventsGateway,
+    private ingredientsService: IngredientsService,
   ) {}
 
   // ── Create order ─────────────────────────────────────────────────────────────
@@ -247,6 +249,12 @@ export class OrdersService {
     }
 
     this.logger.log(`Order ${orderId} paid — ${dto.method} ${total}`);
+    
+    // Automatically deduct raw components from ingredients inventory
+    await this.ingredientsService.deductInventoryForOrder(orderId).catch(err => {
+      this.logger.error(`Error deducting inventory for order ${orderId}: ${err.message}`, err.stack);
+    });
+
     this.eventsGateway.broadcast('ordersUpdated', { orderId, type: 'paid' });
     if (order.tableId) this.eventsGateway.broadcast('tablesUpdated', { tableId: order.tableId });
     return payment;

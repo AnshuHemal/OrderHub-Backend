@@ -17,6 +17,7 @@ import { EmailsModule }     from './emails/emails.module';
 import { EventsModule }     from './events/events.module';
 import { SettingsModule }   from './settings/settings.module';
 import { BookingsModule }   from './bookings/bookings.module';
+import { IngredientsModule } from './ingredients/ingredients.module';
 
 import { JwtAuthGuard }         from './common/guards/jwt-auth.guard';
 import { RolesGuard }           from './common/guards/roles.guard';
@@ -48,6 +49,7 @@ import { AppService }    from './app.service';
     EventsModule,
     SettingsModule,
     BookingsModule,
+    IngredientsModule,
   ],
   controllers: [AppController],
   providers: [
