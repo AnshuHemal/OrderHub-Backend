@@ -54,6 +54,7 @@ export class OrdersService {
       data: {
         staffId,
         tableId:  dto.tableId,
+        customerId: dto.customerId,
         type:     dto.type    ?? 'DINE_IN',
         status:   'PENDING',
         notes:    dto.notes,
@@ -236,6 +237,16 @@ export class OrdersService {
     this.eventsGateway.broadcast('tablesUpdated', { tableId: newTableId });
     if (oldTableId) this.eventsGateway.broadcast('tablesUpdated', { tableId: oldTableId });
 
+    return updated;
+  }
+
+  async linkCustomer(orderId: string, customerId: string | null) {
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data:  { customerId },
+      include: this.orderInclude(),
+    });
+    this.eventsGateway.broadcast('ordersUpdated', { orderId, type: 'updated' });
     return updated;
   }
 

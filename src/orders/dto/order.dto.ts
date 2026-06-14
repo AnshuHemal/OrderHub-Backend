@@ -22,6 +22,7 @@ export class OrderItemDto {
 
 export class CreateOrderDto {
   @ApiPropertyOptional() @IsOptional() @IsString() tableId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() customerId?: string;
   @ApiPropertyOptional({ enum: OrderType }) @IsOptional() @IsEnum(OrderType) type?: OrderType;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(300) notes?: string;
   @ApiProperty({ type: [OrderItemDto] })

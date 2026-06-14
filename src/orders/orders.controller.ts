@@ -81,6 +81,15 @@ export class OrdersController {
     return this.svc.transferTable(id, tableId);
   }
 
+  @Patch(':id/customer')
+  @ApiOperation({ summary: 'Link customer to order' })
+  linkCustomer(
+    @Param('id') id: string,
+    @Body('customerId') customerId: string | null,
+  ) {
+    return this.svc.linkCustomer(id, customerId);
+  }
+
   @Delete(':id')
   @ApiOperation({ summary: 'Cancel an order' })
   @HttpCode(HttpStatus.OK)
