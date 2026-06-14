@@ -251,6 +251,8 @@ async function main() {
     await prisma.order.deleteMany();
     await prisma.table.deleteMany();
     await prisma.floor.deleteMany();
+    await prisma.modifierOption.deleteMany();
+    await prisma.modifierGroup.deleteMany();
     await prisma.menuItem.deleteMany();
     await prisma.category.deleteMany();
     await prisma.customer.deleteMany();
@@ -312,6 +314,83 @@ async function main() {
 
     const totalItems = Object.keys(menuItemMap).length;
     log.success(`Seeded ${totalItems} menu items across ${CATEGORIES.length} categories`);
+
+    // ── Modifiers ─────────────────────────────────────────────────────────────
+    log.section('Seeding MenuItem Modifiers...');
+    
+    // Cappuccino modifiers
+    const cappuccinoId = menuItemMap['Cappuccino'];
+    if (cappuccinoId) {
+      await prisma.modifierGroup.create({
+        data: {
+          menuItemId: cappuccinoId,
+          name: 'Milk Choice',
+          minSelection: 1,
+          maxSelection: 1,
+          options: {
+            create: [
+              { name: 'Whole Milk', priceAdjustment: 0 },
+              { name: 'Oat Milk', priceAdjustment: 40 },
+              { name: 'Almond Milk', priceAdjustment: 50 },
+              { name: 'Soy Milk', priceAdjustment: 30 }
+            ]
+          }
+        }
+      });
+      await prisma.modifierGroup.create({
+        data: {
+          menuItemId: cappuccinoId,
+          name: 'Extras',
+          minSelection: 0,
+          maxSelection: 3,
+          options: {
+            create: [
+              { name: 'Extra Espresso Shot', priceAdjustment: 40 },
+              { name: 'Caramel Drizzle', priceAdjustment: 20 },
+              { name: 'Vanilla Syrup', priceAdjustment: 20 }
+            ]
+          }
+        }
+      });
+      log.success('Seeded Cappuccino Modifiers');
+    }
+
+    // Classic Burger modifiers
+    const burgerId = menuItemMap['Classic Burger'];
+    if (burgerId) {
+      await prisma.modifierGroup.create({
+        data: {
+          menuItemId: burgerId,
+          name: 'Patty Size',
+          minSelection: 1,
+          maxSelection: 1,
+          options: {
+            create: [
+              { name: 'Single Patty', priceAdjustment: 0 },
+              { name: 'Double Patty', priceAdjustment: 120 },
+              { name: 'Triple Patty', priceAdjustment: 220 }
+            ]
+          }
+        }
+      });
+      await prisma.modifierGroup.create({
+        data: {
+          menuItemId: burgerId,
+          name: 'Add-ons',
+          minSelection: 0,
+          maxSelection: 4,
+          options: {
+            create: [
+              { name: 'Extra Cheddar Cheese', priceAdjustment: 30 },
+              { name: 'Crispy Bacon', priceAdjustment: 60 },
+              { name: 'Fried Egg', priceAdjustment: 40 },
+              { name: 'Jalapenos', priceAdjustment: 20 }
+            ]
+          }
+        }
+      });
+      log.success('Seeded Classic Burger Modifiers');
+    }
 
     // ── Floors + Tables ───────────────────────────────────────────────────────
     log.section(`Seeding ${FLOORS.length} floors...`);

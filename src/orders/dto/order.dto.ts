@@ -17,6 +17,7 @@ export class OrderItemDto {
   @ApiProperty()  @IsString()  menuItemId: string;
   @ApiProperty()  @IsInt() @Min(1) quantity: number;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) notes?: string;
+  @ApiPropertyOptional() @IsOptional() @IsArray() selectedModifiers?: any[];
 }
 
 export class CreateOrderDto {
@@ -47,4 +48,51 @@ export class ProcessPaymentDto {
   @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) tip?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) discount?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() reference?: string;
+}
+
+export class VoidOrderDto {
+  @ApiProperty({ example: "Wrong Item" })
+  @IsString()
+  reason: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiProperty({ example: "CASH" })
+  @IsString()
+  refundMethod: string;
+}
+
+export class RefundItemInputDto {
+  @ApiProperty()
+  @IsString()
+  orderItemId: string;
+
+  @ApiProperty()
+  @IsInt()
+  @Min(1)
+  quantity: number;
+}
+
+export class RefundOrderDto {
+  @ApiProperty({ example: "Wrong Item" })
+  @IsString()
+  reason: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiProperty({ example: "CASH" })
+  @IsString()
+  refundMethod: string;
+
+  @ApiProperty({ type: [RefundItemInputDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RefundItemInputDto)
+  items: RefundItemInputDto[];
 }

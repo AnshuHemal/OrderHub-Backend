@@ -7,6 +7,8 @@ import { MenuService } from './menu.service';
 import {
   CreateCategoryDto, UpdateCategoryDto,
   CreateMenuItemDto, UpdateMenuItemDto,
+  CreateModifierGroupDto, UpdateModifierGroupDto,
+  CreateModifierOptionDto, UpdateModifierOptionDto,
 } from './dto/menu.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -78,4 +80,62 @@ export class MenuController {
   @Roles('OWNER', 'MANAGER')
   @HttpCode(HttpStatus.NO_CONTENT)
   deleteItem(@Param('id') id: string) { return this.svc.deleteItem(id); }
+
+  // ── Modifiers (manager write) ──────────────────────────────────────────────
+
+  @Post('items/:menuItemId/modifier-groups')
+  @Roles('OWNER', 'MANAGER')
+  @ApiOperation({ summary: 'Create a modifier group for a menu item' })
+  createModifierGroup(
+    @Param('menuItemId') menuItemId: string,
+    @Body() dto: CreateModifierGroupDto,
+  ) {
+    return this.svc.createModifierGroup(menuItemId, dto);
+  }
+
+  @Put('modifier-groups/:id')
+  @Roles('OWNER', 'MANAGER')
+  @ApiOperation({ summary: 'Update a modifier group' })
+  updateModifierGroup(
+    @Param('id') id: string,
+    @Body() dto: UpdateModifierGroupDto,
+  ) {
+    return this.svc.updateModifierGroup(id, dto);
+  }
+
+  @Delete('modifier-groups/:id')
+  @Roles('OWNER', 'MANAGER')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a modifier group' })
+  deleteModifierGroup(@Param('id') id: string) {
+    return this.svc.deleteModifierGroup(id);
+  }
+
+  @Post('modifier-groups/:groupId/options')
+  @Roles('OWNER', 'MANAGER')
+  @ApiOperation({ summary: 'Create a modifier option for a group' })
+  createModifierOption(
+    @Param('groupId') groupId: string,
+    @Body() dto: CreateModifierOptionDto,
+  ) {
+    return this.svc.createModifierOption(groupId, dto);
+  }
+
+  @Put('modifier-options/:id')
+  @Roles('OWNER', 'MANAGER')
+  @ApiOperation({ summary: 'Update a modifier option' })
+  updateModifierOption(
+    @Param('id') id: string,
+    @Body() dto: UpdateModifierOptionDto,
+  ) {
+    return this.svc.updateModifierOption(id, dto);
+  }
+
+  @Delete('modifier-options/:id')
+  @Roles('OWNER', 'MANAGER')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a modifier option' })
+  deleteModifierOption(@Param('id') id: string) {
+    return this.svc.deleteModifierOption(id);
+  }
 }

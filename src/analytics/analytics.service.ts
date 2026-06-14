@@ -13,9 +13,14 @@ export class AnalyticsService {
     from.setHours(0, 0, 0, 0);
 
     const orders = await this.prisma.order.findMany({
-      where:   { status: 'PAID', completedAt: { gte: from } },
+      where:   { status: 'PAID', completedAt: { gte: from }, voidedAt: null },
       select:  { total: true, completedAt: true, type: true },
       orderBy: { completedAt: 'asc' },
+    });
+
+    const refunds = await this.prisma.refund.findMany({
+      where:   { createdAt: { gte: from } },
+      select:  { amount: true, createdAt: true },
     });
 
     // Group by day
@@ -25,12 +30,21 @@ export class AnalyticsService {
       byDay.set(day, (byDay.get(day) ?? 0) + o.total);
     }
 
+    // Deduct refunds by day
+    for (const r of refunds) {
+      const day = r.createdAt.toISOString().split('T')[0];
+      byDay.set(day, (byDay.get(day) ?? 0) - r.amount);
+    }
+
     const chartData = [...byDay.entries()].map(([date, revenue]) => ({
       date,
       revenue: parseFloat(revenue.toFixed(2)),
     }));
 
-    const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
+    const ordersTotal = orders.reduce((s, o) => s + o.total, 0);
+    const refundsTotal = refunds.reduce((s, r) => s + r.amount, 0);
+    const totalRevenue = ordersTotal - refundsTotal;
+
     const dineIn   = orders.filter(o => o.type === 'DINE_IN').length;
     const takeaway = orders.filter(o => o.type === 'TAKEAWAY').length;
     const delivery = orders.filter(o => o.type === 'DELIVERY').length;
@@ -43,6 +57,7 @@ export class AnalyticsService {
         : 0,
       byOrderType: { dineIn, takeaway, delivery },
       chartData,
+      refundsTotal: parseFloat(refundsTotal.toFixed(2)),
     };
   }
 
@@ -77,7 +92,7 @@ export class AnalyticsService {
   async getHourlyDistribution() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const orders = await this.prisma.order.findMany({
-      where:  { status: 'PAID', completedAt: { gte: today } },
+      where:  { status: 'PAID', completedAt: { gte: today }, voidedAt: null },
       select: { total: true, completedAt: true },
     });
 
@@ -105,7 +120,7 @@ export class AnalyticsService {
         id: true, number: true, status: true,
         floor:  { select: { name: true } },
         orders: {
-          where:  { status: 'PAID' },
+          where:  { status: 'PAID', voidedAt: null },
           select: { total: true },
         },
       },

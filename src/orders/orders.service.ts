@@ -8,6 +8,7 @@ import { IngredientsService } from '../ingredients/ingredients.service';
 import {
   CreateOrderDto, AddItemsDto,
   UpdateOrderStatusDto, UpdateItemStatusDto, ProcessPaymentDto,
+  VoidOrderDto, RefundOrderDto,
 } from './dto/order.dto';
 
 const TAX_RATE = 0.10; // 10% — configure per deployment
@@ -40,7 +41,11 @@ export class OrdersService {
     const priceMap = Object.fromEntries(menuItems.map(m => [m.id, m.price]));
 
     const subtotal = dto.items.reduce(
-      (sum, i) => sum + priceMap[i.menuItemId] * i.quantity, 0,
+      (sum, i) => {
+        const basePrice = priceMap[i.menuItemId];
+        const modifiersPrice = i.selectedModifiers?.reduce((s: number, m: any) => s + (m.priceAdjustment || 0), 0) || 0;
+        return sum + (basePrice + modifiersPrice) * i.quantity;
+      }, 0,
     );
     const tax   = parseFloat((subtotal * TAX_RATE).toFixed(2));
     const total = parseFloat((subtotal + tax).toFixed(2));
@@ -56,13 +61,18 @@ export class OrdersService {
         tax,
         total,
         items: {
-          create: dto.items.map(i => ({
-            menuItemId: i.menuItemId,
-            quantity:   i.quantity,
-            unitPrice:  priceMap[i.menuItemId],
-            notes:      i.notes,
-            status:     'PENDING',
-          })),
+          create: dto.items.map(i => {
+            const basePrice = priceMap[i.menuItemId];
+            const modifiersPrice = i.selectedModifiers?.reduce((s: number, m: any) => s + (m.priceAdjustment || 0), 0) || 0;
+            return {
+              menuItemId: i.menuItemId,
+              quantity:   i.quantity,
+              unitPrice:  basePrice + modifiersPrice,
+              notes:      i.notes,
+              status:     'PENDING',
+              selectedModifiers: i.selectedModifiers || undefined,
+            };
+          }),
         },
       },
       include: this.orderInclude(),
@@ -124,7 +134,11 @@ export class OrdersService {
     });
     const priceMap = Object.fromEntries(menuItems.map(m => [m.id, m.price]));
 
-    const addedSubtotal = dto.items.reduce((s, i) => s + priceMap[i.menuItemId] * i.quantity, 0);
+    const addedSubtotal = dto.items.reduce((sum, i) => {
+      const basePrice = priceMap[i.menuItemId];
+      const modifiersPrice = i.selectedModifiers?.reduce((s: number, m: any) => s + (m.priceAdjustment || 0), 0) || 0;
+      return sum + (basePrice + modifiersPrice) * i.quantity;
+    }, 0);
     const newSubtotal   = order.subtotal + addedSubtotal;
     const newTax        = parseFloat((newSubtotal * TAX_RATE).toFixed(2));
     const newTotal      = parseFloat((newSubtotal + newTax).toFixed(2));
@@ -136,13 +150,18 @@ export class OrdersService {
         tax:      newTax,
         total:    newTotal,
         items: {
-          create: dto.items.map(i => ({
-            menuItemId: i.menuItemId,
-            quantity:   i.quantity,
-            unitPrice:  priceMap[i.menuItemId],
-            notes:      i.notes,
-            status:     'PENDING',
-          })),
+          create: dto.items.map(i => {
+            const basePrice = priceMap[i.menuItemId];
+            const modifiersPrice = i.selectedModifiers?.reduce((s: number, m: any) => s + (m.priceAdjustment || 0), 0) || 0;
+            return {
+              menuItemId: i.menuItemId,
+              quantity:   i.quantity,
+              unitPrice:  basePrice + modifiersPrice,
+              notes:      i.notes,
+              status:     'PENDING',
+              selectedModifiers: i.selectedModifiers || undefined,
+            };
+          }),
         },
       },
       include: this.orderInclude(),
@@ -267,11 +286,18 @@ export class OrdersService {
     const end   = new Date(); end.setHours(23, 59, 59, 999);
 
     const orders = await this.prisma.order.findMany({
-      where: { status: 'PAID', completedAt: { gte: start, lte: end } },
+      where: { status: 'PAID', completedAt: { gte: start, lte: end }, voidedAt: null },
       include: { items: { include: { menuItem: true } }, payment: true },
     });
 
-    const revenue      = orders.reduce((s, o) => s + o.total, 0);
+    const refunds = await this.prisma.refund.findMany({
+      where: { createdAt: { gte: start, lte: end } },
+    });
+
+    const totalPaidOrdersRevenue = orders.reduce((s, o) => s + o.total, 0);
+    const refundsTotal = refunds.reduce((s, r) => s + r.amount, 0);
+    const revenue = parseFloat((totalPaidOrdersRevenue - refundsTotal).toFixed(2));
+
     const totalOrders  = orders.length;
     const avgOrderValue = totalOrders > 0 ? revenue / totalOrders : 0;
 
@@ -292,10 +318,11 @@ export class OrdersService {
 
     return {
       date:      start.toISOString().split('T')[0],
-      revenue:   parseFloat(revenue.toFixed(2)),
+      revenue,
       totalOrders,
       avgOrderValue: parseFloat(avgOrderValue.toFixed(2)),
       topItems,
+      refundsTotal: parseFloat(refundsTotal.toFixed(2)),
     };
   }
 
@@ -312,7 +339,175 @@ export class OrdersService {
         },
       },
       payment: true,
+      refunds: {
+        include: {
+          items: {
+            include: {
+              orderItem: {
+                select: {
+                  menuItem: { select: { name: true } },
+                },
+              },
+            },
+          },
+        },
+      },
     };
+  }
+
+  // ── Voids and Refunds ──────────────────────────────────────────────────────────
+
+  async voidOrder(orderId: string, staffId: string, dto: VoidOrderDto) {
+    const order = await this.findOne(orderId);
+    if (order.status !== 'PAID') {
+      throw new BadRequestException('Only paid orders can be voided');
+    }
+    if (order.voidedAt !== null) {
+      throw new BadRequestException('Order has already been voided');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // 1. Mark order as voided and cancelled
+      const ord = await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: 'CANCELLED',
+          voidedAt: new Date(),
+          voidReason: dto.reason,
+          voidedByUserId: staffId,
+        },
+        include: {
+          table: true,
+          staff: true,
+          customer: true,
+          items: {
+            include: {
+              menuItem: true,
+            },
+          },
+          payment: true,
+        },
+      });
+
+      // 2. Create the refund record for the full order amount
+      await tx.refund.create({
+        data: {
+          orderId,
+          amount: order.total,
+          reason: `Void: ${dto.reason}`,
+          notes: dto.notes,
+          refundedByUserId: staffId,
+          refundMethod: dto.refundMethod,
+        },
+      });
+
+      // 3. Set table status to AVAILABLE
+      if (order.tableId) {
+        await tx.table.update({
+          where: { id: order.tableId },
+          data: { status: 'AVAILABLE' },
+        });
+      }
+
+      return ord;
+    });
+
+    this.logger.log(`Order ${orderId} voided by user ${staffId}`);
+    this.eventsGateway.broadcast('ordersUpdated', { orderId, type: 'voided' });
+    if (order.tableId) {
+      this.eventsGateway.broadcast('tablesUpdated', { tableId: order.tableId });
+    }
+
+    // Refresh return object with correct include
+    return this.findOne(orderId);
+  }
+
+  async refundOrder(orderId: string, staffId: string, dto: RefundOrderDto) {
+    const order = await this.findOne(orderId);
+    if (order.status !== 'PAID') {
+      throw new BadRequestException('Only paid orders can be refunded');
+    }
+    if (order.voidedAt !== null) {
+      throw new BadRequestException('Cannot refund a voided order');
+    }
+
+    // Load active order items
+    const orderItems = await this.prisma.orderItem.findMany({
+      where: { orderId },
+    });
+
+    const refund = await this.prisma.$transaction(async (tx) => {
+      let refundSubtotal = 0;
+
+      // 1. Validate items and update refunded quantities
+      const itemsToCreate: { orderItemId: string; quantity: number }[] = [];
+      for (const itemInput of dto.items) {
+        const orderItem = orderItems.find((oi) => oi.id === itemInput.orderItemId);
+        if (!orderItem) {
+          throw new BadRequestException(`Order item ${itemInput.orderItemId} not found on this order`);
+        }
+
+        const remainingQty = orderItem.quantity - orderItem.refundedQuantity;
+        if (itemInput.quantity > remainingQty) {
+          throw new BadRequestException(
+            `Cannot refund ${itemInput.quantity} of "${orderItem.id}". Only ${remainingQty} remaining to refund.`,
+          );
+        }
+
+        // Increment refunded quantity
+        await tx.orderItem.update({
+          where: { id: orderItem.id },
+          data: {
+            refundedQuantity: {
+              increment: itemInput.quantity,
+            },
+          },
+        });
+
+        // Add to totals
+        refundSubtotal += orderItem.unitPrice * itemInput.quantity;
+        itemsToCreate.push({
+          orderItemId: orderItem.id,
+          quantity: itemInput.quantity,
+        });
+      }
+
+      // Calculate taxes & total for this partial refund
+      const refundTax = parseFloat((refundSubtotal * TAX_RATE).toFixed(2));
+      let refundTotal = parseFloat((refundSubtotal + refundTax).toFixed(2));
+
+      // Safety: Cap the refund total to ensure we do not exceed original payment total
+      const existingRefunds = await tx.refund.findMany({
+        where: { orderId },
+      });
+      const totalAlreadyRefunded = existingRefunds.reduce((sum, r) => sum + r.amount, 0);
+      const remainingAllowedRefund = Math.max(0, order.total - totalAlreadyRefunded);
+      if (refundTotal > remainingAllowedRefund) {
+        refundTotal = remainingAllowedRefund;
+      }
+
+      // 2. Create the refund record
+      const ref = await tx.refund.create({
+        data: {
+          orderId,
+          amount: refundTotal,
+          reason: dto.reason,
+          notes: dto.notes,
+          refundedByUserId: staffId,
+          refundMethod: dto.refundMethod,
+          items: {
+            create: itemsToCreate,
+          },
+        },
+      });
+
+      return ref;
+    });
+
+    this.logger.log(`Partial refund created for Order ${orderId} by user ${staffId}`);
+    this.eventsGateway.broadcast('ordersUpdated', { orderId, type: 'refunded' });
+
+    return refund;
   }
 
   async emailReceipt(orderId: string, email?: string) {
@@ -342,16 +537,25 @@ export class OrdersService {
 
     const orderNum = order.table ? `Table ${order.table.number}` : `Order #${orderId.substring(0, 6).toUpperCase()}`;
 
-    const itemsHtml = order.items.map(item => `
+    const itemsHtml = order.items.map(item => {
+      const modifiers = item.selectedModifiers as any[];
+      const modText = modifiers && modifiers.length > 0
+        ? `<div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+             Modifiers: ${modifiers.map((m: any) => `${m.name} (+₹${m.priceAdjustment || 0})`).join(', ')}
+           </div>`
+        : '';
+      return `
       <tr style="border-bottom: 1px solid #f1f5f9;">
         <td style="padding: 12px 0; text-align: left; font-size: 14px; color: #1e293b;">
           <strong>${item.menuItem.name}</strong>
+          ${modText}
           ${item.notes ? `<div style="font-size: 11px; color: #64748b;">Note: ${item.notes}</div>` : ''}
         </td>
         <td style="padding: 12px 0; text-align: center; font-size: 14px; color: #475569;">${item.quantity}</td>
-        <td style="padding: 12px 0; text-align: right; font-size: 14px; color: #1e293b; font-weight: 600;">$${(item.unitPrice * item.quantity).toFixed(2)}</td>
+        <td style="padding: 12px 0; text-align: right; font-size: 14px; color: #1e293b; font-weight: 600;">₹${(item.unitPrice * item.quantity).toFixed(2)}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     const discountRow = order.discount > 0 ? `
       <tr>

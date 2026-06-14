@@ -7,6 +7,7 @@ import { OrdersService } from './orders.service';
 import {
   CreateOrderDto, AddItemsDto,
   UpdateOrderStatusDto, UpdateItemStatusDto, ProcessPaymentDto,
+  VoidOrderDto, RefundOrderDto,
 } from './dto/order.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -116,5 +117,29 @@ export class OrdersController {
     @Body('email') email: string,
   ) {
     return this.svc.emailReceipt(id, email);
+  }
+
+  // ── Voids and Refunds ──────────────────────────────────────────────────────
+
+  @Post(':id/void')
+  @Roles('OWNER', 'MANAGER')
+  @ApiOperation({ summary: 'Void a completed order' })
+  voidOrder(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: VoidOrderDto,
+  ) {
+    return this.svc.voidOrder(id, user.id, dto);
+  }
+
+  @Post(':id/refund')
+  @Roles('OWNER', 'MANAGER')
+  @ApiOperation({ summary: 'Issue a partial refund' })
+  refundOrder(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: RefundOrderDto,
+  ) {
+    return this.svc.refundOrder(id, user.id, dto);
   }
 }

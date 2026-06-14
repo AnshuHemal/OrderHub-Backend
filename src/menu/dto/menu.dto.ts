@@ -37,3 +37,31 @@ export class CreateMenuItemDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0)           position?:  number;
 }
 export class UpdateMenuItemDto extends PartialType(CreateMenuItemDto) {}
+
+export class CreateModifierGroupDto {
+  @ApiProperty({ example: 'Size' })
+  @IsString() @MaxLength(80)
+  name: string;
+
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional() @IsInt() @Min(0)
+  minSelection?: number;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional() @IsInt() @Min(1)
+  maxSelection?: number;
+}
+
+export class UpdateModifierGroupDto extends PartialType(CreateModifierGroupDto) {}
+
+export class CreateModifierOptionDto {
+  @ApiProperty({ example: 'Large' })
+  @IsString() @MaxLength(80)
+  name: string;
+
+  @ApiProperty({ example: 30 })
+  @IsNumber()
+  priceAdjustment: number;
+}
+
+export class UpdateModifierOptionDto extends PartialType(CreateModifierOptionDto) {}

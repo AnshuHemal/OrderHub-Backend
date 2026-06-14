@@ -15,7 +15,19 @@ export class MenuService {
     return this.prisma.category.findMany({
       where:   { isActive: true },
       orderBy: { position: 'asc' },
-      include: { items: { where: { isAvailable: true }, orderBy: { position: 'asc' } } },
+      include: {
+        items: {
+          where: { isAvailable: true },
+          orderBy: { position: 'asc' },
+          include: {
+            modifierGroups: {
+              include: {
+                options: true
+              }
+            }
+          }
+        }
+      },
     });
   }
 
@@ -45,7 +57,14 @@ export class MenuService {
   getAllItems() {
     return this.prisma.menuItem.findMany({
       orderBy: { position: 'asc' },
-      include: { category: { select: { id: true, name: true } } },
+      include: {
+        category: { select: { id: true, name: true } },
+        modifierGroups: {
+          include: {
+            options: true
+          }
+        }
+      },
     });
   }
 
@@ -70,6 +89,48 @@ export class MenuService {
   async deleteItem(id: string) {
     await this.findItemOrThrow(id);
     return this.prisma.menuItem.delete({ where: { id } });
+  }
+
+  // ── Modifiers ──────────────────────────────────────────────────────────────
+
+  createModifierGroup(menuItemId: string, dto: any) {
+    return this.prisma.modifierGroup.create({
+      data: { ...dto, menuItemId },
+      include: { options: true }
+    });
+  }
+
+  updateModifierGroup(id: string, dto: any) {
+    return this.prisma.modifierGroup.update({
+      where: { id },
+      data: dto,
+      include: { options: true }
+    });
+  }
+
+  deleteModifierGroup(id: string) {
+    return this.prisma.modifierGroup.delete({
+      where: { id }
+    });
+  }
+
+  createModifierOption(modifierGroupId: string, dto: any) {
+    return this.prisma.modifierOption.create({
+      data: { ...dto, modifierGroupId }
+    });
+  }
+
+  updateModifierOption(id: string, dto: any) {
+    return this.prisma.modifierOption.update({
+      where: { id },
+      data: dto
+    });
+  }
+
+  deleteModifierOption(id: string) {
+    return this.prisma.modifierOption.delete({
+      where: { id }
+    });
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
