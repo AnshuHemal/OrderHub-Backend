@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { UpdateUserRoleDto } from './dto/user.dto';
+import { UpdateUserRoleDto, UpdateUserPasswordDto } from './dto/user.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -41,6 +41,17 @@ export class UsersController {
     @Body() dto: UpdateUserRoleDto,
   ) {
     return this.svc.updateRole(actor.id, id, dto);
+  }
+
+  @Patch(':id/password')
+  @Roles('OWNER', 'MANAGER')
+  @ApiOperation({ summary: 'Update user password (OWNER or MANAGER only)' })
+  updatePassword(
+    @CurrentUser() actor: { id: string },
+    @Param('id') id: string,
+    @Body() dto: UpdateUserPasswordDto,
+  ) {
+    return this.svc.updatePassword(actor.id, id, dto);
   }
 
   @Delete(':id')

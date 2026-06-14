@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
-import { UpdateUserRoleDto } from './dto/user.dto';
+import { UpdateUserRoleDto, UpdateUserPasswordDto } from './dto/user.dto';
 
 @Injectable()
 export class UsersService {
@@ -26,6 +27,36 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException(`User ${id} not found`);
     return user;
+  }
+
+  async updatePassword(actorId: string, targetId: string, dto: UpdateUserPasswordDto) {
+    const targetUser = await this.findOne(targetId);
+    const hash = await bcrypt.hash(dto.password, 12);
+
+    const account = await this.prisma.account.findFirst({
+      where: {
+        userId: targetId,
+        providerId: 'credential',
+      },
+    });
+
+    if (account) {
+      await this.prisma.account.update({
+        where: { id: account.id },
+        data: { password: hash },
+      });
+    } else {
+      await this.prisma.account.create({
+        data: {
+          userId: targetId,
+          providerId: 'credential',
+          accountId: targetUser.email.toLowerCase(),
+          password: hash,
+        },
+      });
+    }
+
+    return { success: true };
   }
 
   async updateRole(actorId: string, targetId: string, dto: UpdateUserRoleDto) {

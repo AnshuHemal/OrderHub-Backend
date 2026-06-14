@@ -18,10 +18,11 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  sessions Session[]
-  accounts Account[]
-  orders   Order[]
-  timeLogs ShiftLog[]
+  sessions    Session[]
+  accounts    Account[]
+  orders      Order[]
+  timeLogs    ShiftLog[]
+  posSessions PosSession[]
 
   @@map("users")
 }
@@ -219,6 +220,9 @@ model Order {
   voidedAt       DateTime?
   voidReason     String?
   voidedByUserId String?
+
+  posSessionId String?
+  posSession   PosSession? @relation(fields: [posSessionId], references: [id], onDelete: SetNull)
 
   table    Table?      @relation(fields: [tableId], references: [id], onDelete: SetNull)
   staff    User        @relation(fields: [staffId], references: [id])
@@ -432,4 +436,23 @@ model RefundItem {
 
   @@map("refund_items")
 }
+
+model PosSession {
+  id             String    @id @default(cuid())
+  openedBy       String
+  openedAt       DateTime  @default(now())
+  closedAt       DateTime?
+  openingBalance Float
+  closingFloat   Float?    // Expected cash in drawer at closing
+  countedCash    Float?    // Actual cash counted by cashier
+  discrepancy    Float?    // countedCash - expectedCash
+  status         String    @default("OPEN") // "OPEN" | "CLOSED"
+  zReportData    Json?     // Snapshot of sales breakdown (cash, card, upi, total sales, etc.)
+
+  user           User      @relation(fields: [openedBy], references: [id])
+  orders         Order[]
+
+  @@map("pos_sessions")
+}
+
 

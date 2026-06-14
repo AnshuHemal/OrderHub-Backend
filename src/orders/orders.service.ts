@@ -50,9 +50,18 @@ export class OrdersService {
     const tax   = parseFloat((subtotal * TAX_RATE).toFixed(2));
     const total = parseFloat((subtotal + tax).toFixed(2));
 
+    // Find active session for this staff member
+    const activeSession = await this.prisma.posSession.findFirst({
+      where: {
+        openedBy: staffId,
+        status: 'OPEN',
+      },
+    });
+
     const order = await this.prisma.order.create({
       data: {
         staffId,
+        posSessionId: activeSession?.id || null,
         tableId:  dto.tableId,
         customerId: dto.customerId,
         type:     dto.type    ?? 'DINE_IN',

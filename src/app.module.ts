@@ -18,6 +18,7 @@ import { EventsModule }     from './events/events.module';
 import { SettingsModule }   from './settings/settings.module';
 import { BookingsModule }   from './bookings/bookings.module';
 import { IngredientsModule } from './ingredients/ingredients.module';
+import { PosSessionsModule } from './pos-sessions/pos-sessions.module';
 
 import { JwtAuthGuard }         from './common/guards/jwt-auth.guard';
 import { RolesGuard }           from './common/guards/roles.guard';
@@ -50,6 +51,7 @@ import { AppService }    from './app.service';
     SettingsModule,
     BookingsModule,
     IngredientsModule,
+    PosSessionsModule,
   ],
   controllers: [AppController],
   providers: [
