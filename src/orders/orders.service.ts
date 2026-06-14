@@ -456,7 +456,7 @@ export class OrdersService {
       where: { orderId },
     });
 
-    const refund = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       let refundSubtotal = 0;
 
       // 1. Validate items and update refunded quantities
@@ -521,13 +521,58 @@ export class OrdersService {
         },
       });
 
-      return ref;
+      // 3. Check if fully refunded
+      const updatedItems = await tx.orderItem.findMany({
+        where: { orderId },
+      });
+      const allItemsRefunded = updatedItems.every(
+        (item) => item.refundedQuantity >= item.quantity,
+      );
+
+      const allRefunds = await tx.refund.findMany({
+        where: { orderId },
+      });
+      const totalRefunded = allRefunds.reduce((sum, r) => sum + r.amount, 0);
+      const isTotalRefunded = totalRefunded >= order.total;
+
+      const isFullyRefunded = allItemsRefunded || isTotalRefunded;
+
+      if (isFullyRefunded) {
+        // Set order to CANCELLED and store refund details in void fields
+        await tx.order.update({
+          where: { id: orderId },
+          data: {
+            status: 'CANCELLED',
+            voidedAt: new Date(),
+            voidReason: `Refunded: ${dto.reason}`,
+            voidedByUserId: staffId,
+          },
+        });
+
+        // Revert table status to AVAILABLE
+        if (order.tableId) {
+          await tx.table.update({
+            where: { id: order.tableId },
+            data: { status: 'AVAILABLE' },
+          });
+        }
+      }
+
+      return { refund: ref, isFullyRefunded };
     });
 
-    this.logger.log(`Partial refund created for Order ${orderId} by user ${staffId}`);
-    this.eventsGateway.broadcast('ordersUpdated', { orderId, type: 'refunded' });
+    if (result.isFullyRefunded) {
+      this.logger.log(`Full refund processed for Order ${orderId} by user ${staffId}`);
+      this.eventsGateway.broadcast('ordersUpdated', { orderId, type: 'refunded' });
+      if (order.tableId) {
+        this.eventsGateway.broadcast('tablesUpdated', { tableId: order.tableId });
+      }
+    } else {
+      this.logger.log(`Partial refund created for Order ${orderId} by user ${staffId}`);
+      this.eventsGateway.broadcast('ordersUpdated', { orderId, type: 'refunded' });
+    }
 
-    return refund;
+    return result.refund;
   }
 
   async emailReceipt(orderId: string, email?: string) {
