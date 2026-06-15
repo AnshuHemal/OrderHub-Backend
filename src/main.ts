@@ -15,6 +15,11 @@ async function bootstrap() {
   const port = config.get<number>('PORT', 4000);
   const frontendUrl = config.get<string>('FRONTEND_URL', 'http://localhost:3000');
 
+  // Parse allowed CORS origins (comma-separated list, stripping trailing slashes)
+  const allowedOrigins = frontendUrl
+    .split(',')
+    .map((url) => url.trim().replace(/\/$/, ''));
+
   // Security
   app.use(
     helmet({
@@ -31,9 +36,9 @@ async function bootstrap() {
   app.use(compression());
   app.use(cookieParser());
 
-  // CORS — allow the Next.js frontend
+  // CORS — allow the Next.js frontend(s)
   app.enableCors({
-    origin: frontendUrl,
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
